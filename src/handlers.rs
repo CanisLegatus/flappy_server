@@ -16,12 +16,10 @@ pub async fn health_check() -> Json<Value> {
 }
 
 pub async fn get_scores(State(state): State<AppState>) -> Result<Json<Vec<PlayerScore>>, Response> {
-    get_scores_db(&state.pool)
-        .await
-        .map(Json)
-        .map_err(|e| {
-            tracing::error!("Can't get scores!");
-            ServerError::Database(e.to_string()).into_response()})
+    get_scores_db(&state.pool).await.map(Json).map_err(|e| {
+        tracing::error!("Can't get scores!");
+        ServerError::Database(e.to_string()).into_response()
+    })
 }
 
 pub async fn flush(State(state): State<AppState>) -> Result<Json<Value>, Response> {
@@ -30,7 +28,8 @@ pub async fn flush(State(state): State<AppState>) -> Result<Json<Value>, Respons
         .map(|_| Json(json!({"status": "Ok"})))
         .map_err(|e| {
             tracing::error!("Can't flush scores!");
-            ServerError::Database(e.to_string()).into_response()})
+            ServerError::Database(e.to_string()).into_response()
+        })
 }
 
 pub async fn commit_record(
@@ -52,5 +51,6 @@ pub async fn commit_record(
         .map(|_| Json(json!({"status": "Ok"})))
         .map_err(|e| {
             tracing::error!("Adding new score error!");
-            ServerError::Database(e.to_string()).into_response()})
+            ServerError::Database(e.to_string()).into_response()
+        })
 }

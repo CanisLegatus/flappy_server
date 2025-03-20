@@ -1,28 +1,34 @@
+use std::env;
+use dotenv::dotenv;
+
 use axum::{
-    middleware, routing::{delete, get, post}, Router
+    Router, middleware,
+    routing::{delete, get, post},
 };
 use tokio::net::TcpListener;
-use tower_http::{cors::{Any, CorsLayer}, trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer}};
+use tower_http::{
+    cors::{Any, CorsLayer},
+    trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer},
+};
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::FmtSubscriber;
 
-
 use db_access::*;
 use handlers::*;
-use state::*;
 use security::*;
+use state::*;
 
 mod db_access;
 mod error;
 mod handlers;
-mod state;
 mod security;
+mod state;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     set_up_tracing();
     let cors = set_up_cors();
-
+    let jwt_config = set_up_jwt();
 
     let app_state = AppState {
         pool: connect_to_db().await?,
@@ -38,7 +44,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO))
                 .on_response(DefaultOnResponse::new().level(tracing::Level::INFO)),
         )
-        //.layer(middleware::from_fn(jwt_middleware))
+/*         .layer(middleware::from_fn(move |req, next| {
+            jwt_middleware(req, next, jwt_config.clone())
+        })) */
         .layer(cors)
         .with_state(app_state);
 
@@ -51,8 +59,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn set_up_jwt() -> JwtConfig {
+    dotenv().ok();
+    let secret = env::var("JWT_SECRET").expect("Secret not found in .env! Server is shutdown!");
+    JwtConfig::new(&secret)
+}
+
 fn set_up_tracing() {
-    std::fs::create_dir_all("logs").expect("Can't create folder for logs! Logging to file is not working! Server is shutdown!");
+    std::fs::create_dir_all("logs").expect(
+        "Can't create folder for logs! Logging to file is not working! Server is shutdown!",
+    );
     let writer = RollingFileAppender::new(Rotation::DAILY, "logs", "serv.log");
 
     let subscriber = FmtSubscriber::builder()
@@ -67,7 +83,7 @@ fn set_up_tracing() {
 
 fn set_up_cors() -> CorsLayer {
     CorsLayer::new()
-    .allow_origin(Any)
-    .allow_methods(Any)
-    .allow_headers(Any)
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any)
 }

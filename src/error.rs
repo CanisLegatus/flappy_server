@@ -29,7 +29,33 @@ impl IntoResponse for ServerError {
             ServerError::Authentification(msg) => (
                 StatusCode::UNAUTHORIZED,
                 json!({"error:": "Internal Server Error", "details:": msg}).to_string(),
-            ).into_response()
+            )
+                .into_response(),
         }
+    }
+}
+
+#[derive(Debug)]
+pub enum JwtError {
+    MissingAuthHeader,
+    InvalidTokenFormat,
+    DecodeError(jsonwebtoken::errors::Error),
+}
+
+impl IntoResponse for JwtError {
+    fn into_response(self) -> axum::response::Response {
+        let (status, message) = match self {
+            JwtError::MissingAuthHeader => (StatusCode::UNAUTHORIZED, "Auth header is missing!"),
+            JwtError::InvalidTokenFormat => (
+                StatusCode::BAD_REQUEST,
+                "Invalid token format. Expected: Bearer <token>",
+            ),
+            JwtError::DecodeError(e) => {
+                tracing::warn!("JWT Decode error: {:?}", e);
+                (StatusCode::UNAUTHORIZED, "Invalid or expired token")
+            }
+        };
+
+        (status, message).into_response()
     }
 }
