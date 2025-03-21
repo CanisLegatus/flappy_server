@@ -1,4 +1,4 @@
-use axum::{body::Body, extract::Request, http::StatusCode, middleware::Next, response::Response};
+use axum::{body::Body, extract::Request, middleware::Next, response::Response};
 use jsonwebtoken::{DecodingKey, Validation, decode};
 use serde::Deserialize;
 
@@ -40,7 +40,7 @@ pub async fn jwt_middleware(
 ) -> Result<Response, JwtError> {
     let token = req
         .headers()
-        .get("Authorisation")
+        .get("Authorization")
         .ok_or(JwtError::MissingAuthHeader)?
         .to_str()
         .map_err(|_| JwtError::InvalidTokenFormat)?

@@ -1,5 +1,5 @@
-use std::env;
 use dotenv::dotenv;
+use std::env;
 
 use axum::{
     Router, middleware,
@@ -10,6 +10,7 @@ use tower_http::{
     cors::{Any, CorsLayer},
     trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer},
 };
+
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::FmtSubscriber;
 
@@ -44,9 +45,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO))
                 .on_response(DefaultOnResponse::new().level(tracing::Level::INFO)),
         )
-/*         .layer(middleware::from_fn(move |req, next| {
+        .layer(middleware::from_fn(move |req, next| {
             jwt_middleware(req, next, jwt_config.clone())
-        })) */
+        }))
         .layer(cors)
         .with_state(app_state);
 

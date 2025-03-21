@@ -4,7 +4,7 @@ use serde_json::json;
 pub enum ServerError {
     Validation(String),
     Database(String),
-    Authentification(String),
+    _Authentification(String),
     _Internal(String),
 }
 
@@ -26,7 +26,7 @@ impl IntoResponse for ServerError {
                 json!({"error:": "Internal Server Error", "details:": msg}).to_string(),
             )
                 .into_response(),
-            ServerError::Authentification(msg) => (
+            ServerError::_Authentification(msg) => (
                 StatusCode::UNAUTHORIZED,
                 json!({"error:": "Internal Server Error", "details:": msg}).to_string(),
             )
