@@ -33,22 +33,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let app_state = AppState {
         pool: connect_to_db().await?,
+        jwt_config,
     };
 
-    let app = Router::new()
+    let public_router = Router::new()
         .route("/health", get(health_check))
+        .route("/login", post(login));
+
+    let private_router = Router::new()
         .route("/api/get-scores", get(get_scores))
         .route("/api/set-score", post(commit_record))
         .route("/api/flush", delete(flush))
+        .layer(middleware::from_fn({
+            let state = app_state.clone();
+
+            move |req, next| {
+                let state = state.clone();
+                jwt_middleware(req, next, state)
+            }
+        }));
+
+    let app = Router::new()
+        .merge(public_router)
+        .merge(private_router)
+        .layer(cors)
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO))
                 .on_response(DefaultOnResponse::new().level(tracing::Level::INFO)),
         )
-        .layer(middleware::from_fn(move |req, next| {
-            jwt_middleware(req, next, jwt_config.clone())
-        }))
-        .layer(cors)
         .with_state(app_state);
 
     let listener = TcpListener::bind("0.0.0.0:3000").await.unwrap();

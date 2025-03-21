@@ -40,6 +40,7 @@ pub enum JwtError {
     MissingAuthHeader,
     InvalidTokenFormat,
     DecodeError(jsonwebtoken::errors::Error),
+    _EncodingError(jsonwebtoken::errors::Error),
 }
 
 impl IntoResponse for JwtError {
@@ -52,6 +53,10 @@ impl IntoResponse for JwtError {
             ),
             JwtError::DecodeError(e) => {
                 tracing::warn!("JWT Decode error: {:?}", e);
+                (StatusCode::UNAUTHORIZED, "Invalid or expired token")
+            }
+            JwtError::_EncodingError(e) => {
+                tracing::warn!("JWT Encode error: {:?}", e);
                 (StatusCode::UNAUTHORIZED, "Invalid or expired token")
             }
         };

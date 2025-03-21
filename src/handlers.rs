@@ -1,6 +1,7 @@
 use crate::{
     db_access::{PlayerScore, add_new_score_db, flush_scores_db, get_scores_db},
     error::ServerError,
+    security::{generate_jwt, validate_user},
     state::AppState,
 };
 use axum::{
@@ -8,11 +9,45 @@ use axum::{
     extract::State,
     response::{IntoResponse, Response},
 };
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use validator::Validate;
 
+#[derive(Deserialize)]
+pub struct LoginRequest {
+    pub username: String,
+    pub password: String,
+}
+
+#[derive(Serialize)]
+pub struct LoginResponse {
+    pub token: String,
+}
+
+/////////////////////////////////// HANDLERS ///////////////////////////////////
+
 pub async fn health_check() -> Json<Value> {
     Json(json!({"status": "OK", "message": "Axum is working fine"}))
+}
+
+pub async fn login(
+    State(state): State<AppState>,
+    Json(credentials): Json<LoginRequest>,
+) -> Result<Json<LoginResponse>, Response> {
+    let user = validate_user(&credentials.username, &credentials.password)
+        .await
+        .map_err(|e| {
+            tracing::warn!("User is not validated!");
+            (ServerError::_Authentification(e.to_string())).into_response()
+        })?;
+
+    let secret = state.jwt_config.secret;
+    let token = generate_jwt(&user.id, &secret).map_err(|e| {
+        tracing::warn!("Can't generate JWT Token!");
+        (ServerError::_Authentification(e.to_string())).into_response()
+    })?;
+
+    Ok(Json(LoginResponse { token }))
 }
 
 pub async fn get_scores(State(state): State<AppState>) -> Result<Json<Vec<PlayerScore>>, Response> {
