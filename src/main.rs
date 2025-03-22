@@ -1,5 +1,9 @@
 use dotenv::dotenv;
-use std::env;
+use std::{env, net::SocketAddr, sync::Arc, time::Duration};
+use tower_governor::{
+    GovernorLayer,
+    governor::GovernorConfigBuilder,
+};
 
 use axum::{
     Router, middleware,
@@ -36,9 +40,56 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         jwt_config,
     };
 
+    //// GOVERNORS ////
+    // TODO - CLEAN UP storages!
+    let public_governor = Arc::new(
+        GovernorConfigBuilder::default()
+            .per_second(60)
+            .burst_size(3)
+            .finish()
+            .expect("Unable to set up Governor! Server is shutdown!"),
+    );
+
+    let private_governor = Arc::new(
+        GovernorConfigBuilder::default()
+            .key_extractor(JwtKeyExtractor)
+            .per_second(60)
+            .burst_size(5)
+            .finish()
+            .expect("Unable to set up Governor! Server is shutdown!"),
+    );
+
+    //Getting RateLimiters of governors and cloning them to send to closure
+    let public_limiter = public_governor.limiter().clone();
+    let private_limiter = private_governor.limiter().clone();
+
+
+    //Creating additional tokio task to clean up RateLimiters storage once a day
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_secs(86400));
+        loop {
+            interval.tick().await;
+            tracing::info!("Starting RateLimiters clean ups...");
+            public_limiter.retain_recent();
+            private_limiter.retain_recent();
+            tracing::info!("Finished RateLimiters clean ups!");
+        }
+    });
+
+    let public_governor_layer = GovernorLayer {
+        config: public_governor,
+    };
+
+    let private_governor_layer = GovernorLayer {
+        config: private_governor,
+    };
+
+    //// ROUTERS ////
+
     let public_router = Router::new()
         .route("/health", get(health_check))
-        .route("/login", post(login));
+        .route("/login", post(login))
+        .layer(public_governor_layer);
 
     let private_router = Router::new()
         .route("/api/get-scores", get(get_scores))
@@ -51,7 +102,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let state = state.clone();
                 jwt_middleware(req, next, state)
             }
-        }));
+        }))
+        .layer(private_governor_layer);
 
     let app = Router::new()
         .merge(public_router)
@@ -68,7 +120,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tracing::info!("Server is up!");
 
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
+    .unwrap();
 
     Ok(())
 }

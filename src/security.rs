@@ -2,8 +2,28 @@ use axum::{body::Body, extract::Request, middleware::Next, response::Response};
 use chrono::{Duration, Utc};
 use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use serde::{Deserialize, Serialize};
+use tower_governor::key_extractor::KeyExtractor;
 
 use crate::{error::JwtError, state::AppState};
+
+#[derive(Clone)]
+pub struct JwtKeyExtractor;
+
+impl KeyExtractor for JwtKeyExtractor {
+    type Key = String;
+
+    fn extract<T>(
+        &self,
+        req: &axum::http::Request<T>,
+    ) -> Result<Self::Key, tower_governor::GovernorError> {
+        req.headers()
+            .get("Authorization")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.strip_prefix("Bearer "))
+            .map(|token| token.to_string())
+            .ok_or(tower_governor::errors::GovernorError::UnableToExtractKey)
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Claims {
