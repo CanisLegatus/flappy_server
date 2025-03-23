@@ -1,14 +1,14 @@
 use dotenv::dotenv;
 use std::{env, net::SocketAddr, sync::Arc, time::Duration};
-use tower_governor::{
-    GovernorLayer,
-    governor::GovernorConfigBuilder,
-};
+use tower_governor::{GovernorLayer, governor::GovernorConfigBuilder};
 
 use axum::http::Method;
 
 use axum::{
-    http::header::{AUTHORIZATION, CONTENT_TYPE}, middleware, routing::{delete, get, post}, Router
+    Router,
+    http::header::{AUTHORIZATION, CONTENT_TYPE},
+    middleware,
+    routing::{delete, get, post},
 };
 use tokio::net::TcpListener;
 use tower_http::{
@@ -64,7 +64,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let public_limiter = public_governor.limiter().clone();
     let private_limiter = private_governor.limiter().clone();
 
-
     //Creating additional tokio task to clean up RateLimiters storage once a day
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(Duration::from_secs(86400));
@@ -109,6 +108,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = Router::new()
         .merge(public_router)
         .merge(private_router)
+        .layer(middleware::from_fn(set_up_security_headers))
         .layer(cors)
         .layer(
             TraceLayer::new_for_http()
@@ -155,8 +155,10 @@ fn set_up_tracing() {
 
 fn set_up_cors() -> CorsLayer {
     CorsLayer::new()
-        .allow_origin(["http://0.0.0.0:3000".parse().unwrap(),
-                       "http://0.0.0.0:8080".parse().unwrap()])
+        .allow_origin([
+            "http://0.0.0.0:3000".parse().unwrap(),
+            "http://0.0.0.0:8080".parse().unwrap(),
+        ])
         .allow_methods([Method::GET, Method::POST, Method::DELETE])
         .allow_headers([AUTHORIZATION, CONTENT_TYPE])
 }

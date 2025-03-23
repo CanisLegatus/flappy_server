@@ -1,4 +1,10 @@
-use axum::{body::Body, extract::Request, middleware::Next, response::Response};
+use axum::{
+    body::Body,
+    extract::Request,
+    http::{header, HeaderValue},
+    middleware::Next,
+    response::{IntoResponse, Response},
+};
 use chrono::{Duration, Utc};
 use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use serde::{Deserialize, Serialize};
@@ -108,4 +114,44 @@ pub async fn validate_user(_username: &String, _password: &String) -> Result<Use
     Ok(User {
         id: "default".into(),
     })
+}
+
+pub async fn set_up_security_headers(req: axum::http::Request<Body>, next: axum::middleware::Next) -> Result<impl IntoResponse, axum::http::StatusCode> {
+    let mut response = next.run(req).await;
+
+    // Sources of content limited only to our domain
+    response.headers_mut().insert(
+        header::CONTENT_SECURITY_POLICY,
+        HeaderValue::from_static("default-src 'self'"),
+    );
+
+    // Use only HTTPS in a year (will fail in local)
+    response.headers_mut().insert(
+        header::STRICT_TRANSPORT_SECURITY,
+        HeaderValue::from_static("max-age=31536000; includeSubDomains"),
+    );
+
+    // Restict guessing on content type
+    response.headers_mut().insert(
+        header::X_CONTENT_TYPE_OPTIONS,
+        HeaderValue::from_static("nosniff"),
+    );
+
+    // Restrict usage in iframes on other sites, apps
+    response
+        .headers_mut()
+        .insert(header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY"));
+
+    // Restict sending info when of parameters when downgrate from https to http
+    response.headers_mut().insert(
+        header::REFERRER_POLICY,
+        HeaderValue::from_static("no-referrer-when-downgrade"),
+    );
+    // Restrict usage of geolocation, camera
+    response.headers_mut().insert(
+        "Permissions-Policy",
+        HeaderValue::from_static("geolocation=(), camera=()"),
+    );
+
+    Ok(response)
 }
