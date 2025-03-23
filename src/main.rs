@@ -5,13 +5,14 @@ use tower_governor::{
     governor::GovernorConfigBuilder,
 };
 
+use axum::http::Method;
+
 use axum::{
-    Router, middleware,
-    routing::{delete, get, post},
+    http::header::{AUTHORIZATION, CONTENT_TYPE}, middleware, routing::{delete, get, post}, Router
 };
 use tokio::net::TcpListener;
 use tower_http::{
-    cors::{Any, CorsLayer},
+    cors::CorsLayer,
     trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer},
 };
 
@@ -154,7 +155,8 @@ fn set_up_tracing() {
 
 fn set_up_cors() -> CorsLayer {
     CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any)
+        .allow_origin(["http://0.0.0.0:3000".parse().unwrap(),
+                       "http://0.0.0.0:8080".parse().unwrap()])
+        .allow_methods([Method::GET, Method::POST, Method::DELETE])
+        .allow_headers([AUTHORIZATION, CONTENT_TYPE])
 }
