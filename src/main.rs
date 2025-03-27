@@ -1,4 +1,5 @@
 use dotenv::dotenv;
+use tower_http::limit::RequestBodyLimitLayer;
 use std::{env, net::SocketAddr, sync::Arc, time::Duration};
 use tower_governor::{GovernorLayer, governor::GovernorConfigBuilder};
 
@@ -88,6 +89,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let public_router = Router::new()
         .route("/health", get(health_check))
+        .route("/health", post(health_check))
         .route("/login", post(login))
         .layer(public_governor_layer);
 
@@ -109,6 +111,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .merge(public_router)
         .merge(private_router)
         .layer(middleware::from_fn(set_up_security_headers))
+        .layer(RequestBodyLimitLayer::new(1024))
         .layer(cors)
         .layer(
             TraceLayer::new_for_http()

@@ -4,6 +4,8 @@ use sqlx::PgPool;
 use std::env;
 use validator::Validate;
 
+use crate::error::ServerError;
+
 #[derive(sqlx::FromRow, Debug, Deserialize, Serialize, Validate)]
 pub struct PlayerScore {
     #[validate(length(min = 3, max = 20))]
@@ -11,6 +13,15 @@ pub struct PlayerScore {
 
     #[validate(range(min = 0, max = 1_000_000))]
     pub player_score: i32,
+}
+
+pub async fn health_db(pool: &PgPool) -> Result<(), ServerError> {
+    sqlx::query!("SELECT 1 AS one")
+        .fetch_one(pool)
+        .await
+        .map_or_else(
+            |e| Err(ServerError::Database(format!("{}", e))),
+                  |_| Ok(()))
 }
 
 pub async fn connect_to_db() -> Result<PgPool, sqlx::Error> {
