@@ -1,7 +1,7 @@
 use axum::{
     body::Body,
     extract::Request,
-    http::{header, HeaderValue},
+    http::{HeaderValue, header},
     middleware::Next,
     response::{IntoResponse, Response},
 };
@@ -116,7 +116,10 @@ pub async fn validate_user(_username: &String, _password: &String) -> Result<Use
     })
 }
 
-pub async fn set_up_security_headers(req: axum::http::Request<Body>, next: axum::middleware::Next) -> Result<impl IntoResponse, axum::http::StatusCode> {
+pub async fn set_up_security_headers(
+    req: axum::http::Request<Body>,
+    next: axum::middleware::Next,
+) -> Result<impl IntoResponse, axum::http::StatusCode> {
     let mut response = next.run(req).await;
 
     // Sources of content limited only to our domain

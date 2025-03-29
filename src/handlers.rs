@@ -1,5 +1,5 @@
 use crate::{
-    db_access::{add_new_score_db, flush_scores_db, get_scores_db, health_db, PlayerScore},
+    db_access::{PlayerScore, add_new_score_db, flush_scores_db, get_scores_db, health_db},
     error::ServerError,
     security::{generate_jwt, validate_user},
     state::AppState,
@@ -27,12 +27,15 @@ pub struct LoginResponse {
 /////////////////////////////////// HANDLERS ///////////////////////////////////
 
 pub async fn health_check(State(state): State<AppState>) -> Json<Value> {
-    let db_health = health_db(&state.pool).await;
-    let server_health: String = db_health.map_or_else(
-        |_| "Sick!".into(),
-              |_| "Healthy...".into());
+    let db_health: String = health_db(&state.pool)
+        .await
+        .map_or("DOWN".into(), |_| "OK".into());
 
-    Json(json!({"status": "OK", "message": "Axum is working fine", "server": server_health}))
+    Json(json!({"status": "OK",
+    "services": {
+        "server": "OK",
+        "database": db_health
+    }}))
 }
 
 pub async fn login(

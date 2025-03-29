@@ -19,9 +19,7 @@ pub async fn health_db(pool: &PgPool) -> Result<(), ServerError> {
     sqlx::query!("SELECT 1 AS one")
         .fetch_one(pool)
         .await
-        .map_or_else(
-            |e| Err(ServerError::Database(format!("{}", e))),
-                  |_| Ok(()))
+        .map_or_else(|e| Err(ServerError::Database(format!("{}", e))), |_| Ok(()))
 }
 
 pub async fn connect_to_db() -> Result<PgPool, sqlx::Error> {
