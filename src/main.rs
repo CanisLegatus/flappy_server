@@ -164,4 +164,6 @@ fn set_up_cors() -> CorsLayer {
         ])
         .allow_methods([Method::GET, Method::POST, Method::DELETE])
         .allow_headers([AUTHORIZATION, CONTENT_TYPE])
+        .allow_credentials(false)
+        .max_age(Duration::from_secs(86400))
 }
