@@ -7,6 +7,7 @@ use crate::{
 use axum::{
     Json,
     extract::State,
+    http::StatusCode,
     response::{IntoResponse, Response},
 };
 use serde::{Deserialize, Serialize};
@@ -25,6 +26,10 @@ pub struct LoginResponse {
 }
 
 /////////////////////////////////// HANDLERS ///////////////////////////////////
+
+pub async fn handler_404() -> impl IntoResponse {
+    (StatusCode::NOT_FOUND, "Resource is not found!").into_response()
+}
 
 pub async fn health_check(State(state): State<AppState>) -> Json<Value> {
     let db_health: String = health_db(&state.pool)

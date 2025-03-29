@@ -89,7 +89,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let public_router = Router::new()
         .route("/health", get(health_check))
-        .route("/health", post(health_check))
         .route("/login", post(login))
         .layer(public_governor_layer);
 
@@ -110,6 +109,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = Router::new()
         .merge(public_router)
         .merge(private_router)
+        .fallback(handler_404)
         .layer(middleware::from_fn(set_up_security_headers))
         .layer(RequestBodyLimitLayer::new(1024))
         .layer(cors)
