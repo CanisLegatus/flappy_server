@@ -141,9 +141,6 @@ async fn wait_for_shutdown_signal() {
         let mut term_interrupt = signal(SignalKind::interrupt()).unwrap();
 
         tokio::select! {
-            _ = tokio::signal::ctrl_c() => {
-                tracing::info!("CTRL_C Signal Recieved... Starting graceful shutdown...")
-            },
             _ = term_signal.recv() => {
                 tracing::info!("TERM Signal Recieved... Starting graceful shutdown...")
             },
