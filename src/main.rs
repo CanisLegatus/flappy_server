@@ -1,4 +1,5 @@
 use dotenv::dotenv;
+use tokio::signal::unix::{signal, SignalKind};
 use std::{env, net::SocketAddr, sync::Arc, time::Duration};
 use tower_governor::{GovernorLayer, governor::GovernorConfigBuilder};
 use tower_http::limit::RequestBodyLimitLayer;
@@ -37,10 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cors = set_up_cors();
     let jwt_config = set_up_jwt();
 
-    let app_state = AppState {
-        pool: connect_to_db().await?,
-        jwt_config,
-    };
+    let app_state = AppState::new(connect_to_db().await?, jwt_config);
 
     //// GOVERNORS ////
     // TODO - CLEAN UP storages!
@@ -67,7 +65,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     //Creating additional tokio task to clean up RateLimiters storage once a day
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(Duration::from_secs(86400));
+        let mut interval = tokio::time::interval(Duration::from_secs(5));
         loop {
             interval.tick().await;
             tracing::info!("Starting RateLimiters clean ups...");
@@ -118,7 +116,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO))
                 .on_response(DefaultOnResponse::new().level(tracing::Level::INFO)),
         )
-        .with_state(app_state);
+        .with_state(app_state.clone());
 
     let listener = TcpListener::bind("0.0.0.0:3000").await.unwrap();
 
@@ -128,10 +126,44 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         listener,
         app.into_make_service_with_connect_info::<SocketAddr>(),
     )
+    .with_graceful_shutdown(wait_for_shutdown_signal())
     .await
     .unwrap();
 
     Ok(())
+}
+
+async fn wait_for_shutdown_signal() {
+    #[cfg(unix)]
+    {
+        let mut term_signal = signal(SignalKind::terminate()).unwrap();
+        let mut term_hup = signal(SignalKind::hangup()).unwrap();
+        let mut term_interrupt = signal(SignalKind::interrupt()).unwrap();
+
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => {
+                tracing::info!("CTRL_C Signal Recieved... Starting graceful shutdown...")
+            },
+            _ = term_signal.recv() => {
+                tracing::info!("TERM Signal Recieved... Starting graceful shutdown...")
+            },
+            _ = term_hup.recv() => {
+                tracing::info!("HUP Signal Recieved... Starting graceful shutdown...")
+            },
+            _ = term_interrupt.recv() => {
+                tracing::info!("INTERRUPT Signal Recieved... Starting graceful shutdown...")
+            },
+
+        }
+
+    }
+
+    #[cfg(windows)]
+    {
+        tokio::signal::ctrl_c().await.expect("Failed to set up Ctrl+C handler");
+        tracing::info!("Ctrl+C received, starting graceful shutdown...");
+    }
+
 }
 
 fn set_up_jwt() -> JwtConfig {
