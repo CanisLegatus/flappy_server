@@ -3,6 +3,7 @@ use tokio::signal::unix::{signal, SignalKind};
 use std::{env, net::SocketAddr, sync::Arc, time::Duration};
 use tower_governor::{GovernorLayer, governor::GovernorConfigBuilder};
 use tower_http::limit::RequestBodyLimitLayer;
+use tower_http::timeout::TimeoutLayer;
 
 use axum::http::Method;
 
@@ -109,6 +110,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .merge(private_router)
         .fallback(handler_404)
         .layer(middleware::from_fn(set_up_security_headers))
+        .layer(TimeoutLayer::new(Duration::from_secs(10)))
         .layer(RequestBodyLimitLayer::new(1024))
         .layer(cors)
         .layer(
