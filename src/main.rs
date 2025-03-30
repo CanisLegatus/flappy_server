@@ -65,7 +65,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     //Creating additional tokio task to clean up RateLimiters storage once a day
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(Duration::from_secs(5));
+        let mut interval = tokio::time::interval(Duration::from_secs(86400));
         loop {
             interval.tick().await;
             tracing::info!("Starting RateLimiters clean ups...");
