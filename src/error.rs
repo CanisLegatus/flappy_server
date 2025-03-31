@@ -59,21 +59,40 @@ pub enum JwtError {
 impl IntoResponse for JwtError {
     fn into_response(self) -> axum::response::Response {
         let (status, message) = match self {
-            JwtError::MissingAuthHeader => (StatusCode::UNAUTHORIZED, "Auth header is missing!"),
+            JwtError::MissingAuthHeader => (
+                StatusCode::UNAUTHORIZED,
+                json!({"error:": "Validation failed!", "details:": "Auth header is missing"})
+                    .to_string(),
+            ),
             JwtError::InvalidTokenFormat => (
                 StatusCode::BAD_REQUEST,
-                "Invalid token format. Expected: Bearer <token>",
+                json!({"error:": "Validation failed!", "details:": "Invalid token format. Expected: Bearer <token>"}).to_string(),
             ),
             JwtError::DecodeError(e) => {
                 tracing::warn!("JWT Decode error: {:?}", e);
-                (StatusCode::UNAUTHORIZED, "Invalid or expired token")
+                (StatusCode::UNAUTHORIZED,
+                json!({"error:": "Validation failed!", "details:": "Invalid or expired token"}).to_string())
             }
             JwtError::_EncodingError(e) => {
                 tracing::warn!("JWT Encode error: {:?}", e);
-                (StatusCode::UNAUTHORIZED, "Invalid or expired token")
+                (StatusCode::UNAUTHORIZED,
+                json!({"error:": "Validation failed!", "details:": "Invalid or expired token"}).to_string())
             }
         };
 
         (status, message).into_response()
+    }
+}
+
+impl std::fmt::Display for JwtError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            JwtError::MissingAuthHeader => write!(f, "Auth header is missing"),
+            JwtError::InvalidTokenFormat => {
+                write!(f, "Invalid token format. Expected: Bearer <token>")
+            }
+            JwtError::DecodeError(_) => write!(f, "Invalid or expired token"),
+            JwtError::_EncodingError(_) => write!(f, "Invalid or expired token"),
+        }
     }
 }

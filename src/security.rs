@@ -91,7 +91,7 @@ pub async fn jwt_middleware(
     Ok(next.run(req).await)
 }
 
-pub fn generate_jwt(user_id: &str, secret: &str) -> Result<String, jsonwebtoken::errors::Error> {
+pub fn generate_jwt(user_id: &str, secret: &str) -> Result<String, JwtError> {
     let expiration = Utc::now()
         .checked_add_signed(Duration::hours(1))
         .expect("Invalid timestamp! Server is shutdown!")
@@ -108,6 +108,7 @@ pub fn generate_jwt(user_id: &str, secret: &str) -> Result<String, jsonwebtoken:
         &claims,
         &EncodingKey::from_secret(secret.as_ref()),
     )
+    .map_err(|e| JwtError::_EncodingError(e))
 }
 
 pub async fn validate_user(_username: &String, _password: &String) -> Result<User, String> {

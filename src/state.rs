@@ -1,6 +1,5 @@
-use sqlx::PgPool;
 use crate::security::JwtConfig;
-
+use sqlx::PgPool;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -10,9 +9,6 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(pool: PgPool, jwt_config: JwtConfig) -> Self {
-        AppState {
-            pool,
-            jwt_config,
-        }
+        AppState { pool, jwt_config }
     }
 }
