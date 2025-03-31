@@ -22,7 +22,7 @@ pub async fn health_db(pool: &PgPool) -> Result<(), ServerError> {
         .map_or_else(|e| Err(ServerError::Database(format!("{}", e))), |_| Ok(()))
 }
 
-pub async fn connect_to_db() -> Result<PgPool, sqlx::Error> {
+pub async fn connect_to_db() -> Result<PgPool, ServerError> {
     dotenv().ok();
     let database_url = env::var("DATABASE_URL").expect("Adress not found in .env!");
 
@@ -30,7 +30,7 @@ pub async fn connect_to_db() -> Result<PgPool, sqlx::Error> {
     Ok(pool)
 }
 
-pub async fn flush_scores_db(pool: &PgPool) -> Result<(), sqlx::Error> {
+pub async fn flush_scores_db(pool: &PgPool) -> Result<(), ServerError> {
     sqlx::query!("TRUNCATE TABLE flappy_dragon_score RESTART IDENTITY")
         .execute(pool)
         .await?;
@@ -38,7 +38,7 @@ pub async fn flush_scores_db(pool: &PgPool) -> Result<(), sqlx::Error> {
     Ok(())
 }
 
-pub async fn get_scores_db(pool: &PgPool) -> Result<Vec<PlayerScore>, sqlx::Error> {
+pub async fn get_scores_db(pool: &PgPool) -> Result<Vec<PlayerScore>, ServerError> {
     let scores_array = sqlx::query_as!(
         PlayerScore,
         "SELECT player_name, player_score FROM flappy_dragon_score ORDER BY player_score DESC"
@@ -49,14 +49,14 @@ pub async fn get_scores_db(pool: &PgPool) -> Result<Vec<PlayerScore>, sqlx::Erro
     Ok(scores_array)
 }
 
-async fn check_if_record_wothy(pool: &PgPool, score: &PlayerScore) -> Result<bool, sqlx::Error> {
+async fn check_if_record_wothy(pool: &PgPool, score: &PlayerScore) -> Result<bool, ServerError> {
     let min_score = sqlx::query_scalar("SELECT COALESCE (MIN(player_score), 0) FROM (SELECT player_score FROM flappy_dragon_score ORDER BY player_score DESC LIMIT 10) AS top")
         .fetch_optional(pool).await?.unwrap_or(0);
 
     Ok(score.player_score > min_score)
 }
 
-pub async fn add_new_score_db(pool: &PgPool, score: PlayerScore) -> Result<(), sqlx::Error> {
+pub async fn add_new_score_db(pool: &PgPool, score: PlayerScore) -> Result<(), ServerError> {
     if check_if_record_wothy(pool, &score).await? {
         // Inserting value
         sqlx::query!(

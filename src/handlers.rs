@@ -51,13 +51,13 @@ pub async fn login(
         .await
         .map_err(|e| {
             tracing::warn!("User is not validated!");
-            (ServerError::_Authentification(e.to_string())).into_response()
+            (ServerError::Authentication(e.to_string())).into_response()
         })?;
 
     let secret = state.jwt_config.secret;
     let token = generate_jwt(&user.id, &secret).map_err(|e| {
         tracing::warn!("Can't generate JWT Token!");
-        (ServerError::_Authentification(e.to_string())).into_response()
+        (ServerError::Authentication(e.to_string())).into_response()
     })?;
 
     Ok(Json(LoginResponse { token }))
@@ -66,7 +66,7 @@ pub async fn login(
 pub async fn get_scores(State(state): State<AppState>) -> Result<Json<Vec<PlayerScore>>, Response> {
     get_scores_db(&state.pool).await.map(Json).map_err(|e| {
         tracing::error!("Can't get scores!");
-        ServerError::Database(e.to_string()).into_response()
+        e.into_response()
     })
 }
 
@@ -76,7 +76,7 @@ pub async fn flush(State(state): State<AppState>) -> Result<Json<Value>, Respons
         .map(|_| Json(json!({"status": "Ok"})))
         .map_err(|e| {
             tracing::error!("Can't flush scores!");
-            ServerError::Database(e.to_string()).into_response()
+            e.into_response()
         })
 }
 
@@ -99,6 +99,6 @@ pub async fn commit_record(
         .map(|_| Json(json!({"status": "Ok"})))
         .map_err(|e| {
             tracing::error!("Adding new score error!");
-            ServerError::Database(e.to_string()).into_response()
+            e.into_response()
         })
 }

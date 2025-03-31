@@ -1,11 +1,13 @@
 use dotenv::dotenv;
-use tokio::signal::unix::{signal, SignalKind};
 use std::{env, net::SocketAddr, sync::Arc, time::Duration};
 use tower_governor::{GovernorLayer, governor::GovernorConfigBuilder};
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::timeout::TimeoutLayer;
 
 use axum::http::Method;
+
+#[cfg(unix)]
+use tokio::signal::unix::{SignalKind, signal};
 
 use axum::{
     Router,
@@ -154,15 +156,15 @@ async fn wait_for_shutdown_signal() {
             },
 
         }
-
     }
 
     #[cfg(windows)]
     {
-        tokio::signal::ctrl_c().await.expect("Failed to set up Ctrl+C handler");
+        tokio::signal::ctrl_c()
+            .await
+            .expect("Failed to set up Ctrl+C handler");
         tracing::info!("Ctrl+C received, starting graceful shutdown...");
     }
-
 }
 
 fn set_up_jwt() -> JwtConfig {
