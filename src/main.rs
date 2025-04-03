@@ -1,5 +1,4 @@
-use dotenv::dotenv;
-use std::{env, net::SocketAddr, sync::Arc, time::Duration};
+use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tower_governor::{GovernorLayer, governor::GovernorConfigBuilder};
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::timeout::TimeoutLayer;
@@ -15,7 +14,7 @@ use axum::{
     middleware,
     routing::{delete, get, post},
 };
-use tokio::net::TcpListener;
+use tokio::{net::TcpListener, sync::RwLock};
 use tower_http::{
     cors::CorsLayer,
     trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer},
@@ -40,8 +39,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     set_up_tracing();
     let cors = set_up_cors();
     let jwt_config = set_up_jwt();
-
-    let app_state = AppState::new(connect_to_db().await?, jwt_config);
+    let app_state = AppState::new(connect_to_db().await?, jwt_config.clone());
 
     //// GOVERNORS ////
     // TODO - CLEAN UP storages!
@@ -75,6 +73,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             public_limiter.retain_recent();
             private_limiter.retain_recent();
             tracing::info!("Finished RateLimiters clean ups!");
+        }
+    });
+
+    //Creating additional tokio task to update Secret Every 24-hours
+
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_secs(86400));
+        loop {
+            interval.tick().await;
+            tracing::info!("Changing Secret");
+            jwt_config.write().await.secret = generate_secret();
+            tracing::info!("Finished changing Secret");
         }
     });
 
@@ -167,10 +177,8 @@ async fn wait_for_shutdown_signal() {
     }
 }
 
-fn set_up_jwt() -> JwtConfig {
-    dotenv().ok();
-    let secret = env::var("JWT_SECRET").expect("Secret not found in .env! Server is shutdown!");
-    JwtConfig::new(&secret)
+fn set_up_jwt() -> Arc<RwLock<JwtConfig>> {
+    Arc::new(RwLock::new(JwtConfig::new(generate_secret())))
 }
 
 fn set_up_tracing() {

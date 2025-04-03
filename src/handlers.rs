@@ -54,8 +54,8 @@ pub async fn login(
             (ServerError::Authentication(e.to_string())).into_response()
         })?;
 
-    let secret = state.jwt_config.secret;
-    let token = generate_jwt(&user.id, &secret).map_err(|e| {
+    let secret = &state.jwt_config.read().await.secret;
+    let token = generate_jwt(&user.id, secret).map_err(|e| {
         tracing::warn!("Can't generate JWT Token!");
         (ServerError::Authentication(e.to_string())).into_response()
     })?;

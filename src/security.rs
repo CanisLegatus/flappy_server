@@ -7,6 +7,7 @@ use axum::{
 };
 use chrono::{Duration, Utc};
 use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
+use rand::{Rng, distr::Alphanumeric};
 use serde::{Deserialize, Serialize};
 use tower_governor::key_extractor::KeyExtractor;
 
@@ -51,14 +52,14 @@ pub struct JwtConfig {
 }
 
 impl JwtConfig {
-    pub fn new(secret: &str) -> Self {
+    pub fn new(secret: String) -> Self {
         let mut validation = Validation::default();
         validation.leeway = 60;
         validation.validate_exp = true;
         validation.validate_nbf = true;
 
         Self {
-            secret: secret.to_string(),
+            secret,
             _leeway: 60,
             validation,
         }
@@ -80,10 +81,13 @@ pub async fn jwt_middleware(
         .ok_or(JwtError::InvalidTokenFormat)?
         .trim();
 
+    let secret = &state.jwt_config.read().await.secret;
+    let validation = &state.jwt_config.read().await.validation;
+
     let _claims = decode::<Claims>(
         token,
-        &DecodingKey::from_secret(state.jwt_config.secret.as_ref()),
-        &state.jwt_config.validation,
+        &DecodingKey::from_secret(secret.as_ref()),
+        validation,
     )
     .map_err(|e| JwtError::DecodeError(e))?
     .claims;
@@ -158,4 +162,9 @@ pub async fn set_up_security_headers(
     );
 
     Ok(response)
+}
+
+pub fn generate_secret() -> String {
+    let mut rng = rand::rng();
+    (0..32).map(|_| rng.sample(Alphanumeric) as char).collect()
 }
