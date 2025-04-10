@@ -77,14 +77,13 @@ pub async fn add_new_score_db(pool: &PgPool, score: PlayerScore) -> Result<(), S
 
 #[cfg(test)]
 mod db_tests {
-
     use super::*;
 
     #[tokio::test]
     async fn db_connection_test() {
         assert!(connect_to_db().await.is_ok());
     }
-    
+
     #[tokio::test]
     async fn db_test_health_check() {
         let pool = connect_to_db().await.unwrap();
