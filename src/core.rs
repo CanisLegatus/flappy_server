@@ -1,11 +1,11 @@
-use crate::generate_secret;
 use crate::Arc;
 use crate::JwtConfig;
+use crate::generate_secret;
 use axum::http::Method;
 use std::time::Duration;
 
 #[cfg(unix)]
-use tokio::signal::unix::{signal, SignalKind};
+use tokio::signal::unix::{SignalKind, signal};
 
 use axum::http::header::{AUTHORIZATION, CONTENT_TYPE};
 use tokio::sync::RwLock;
