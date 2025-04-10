@@ -1,0 +1,30 @@
+services:
+  pg-container:
+    image: postgres:14
+    container_name: pg-container
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: max
+      POSTGRES_PASSWORD: 1234
+      POSTGRES_DB: dragon_db
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./sql_script/prod:/docker-entrypoint-initdb.d
+
+  pg-test:
+    image: postgres:14 
+    container_name: pg-test
+    ports:
+      - "5431:5432"
+    environment:
+      POSTGRES_USER: max
+      POSTGRES_PASSWORD: 1234
+      POSTGRES_DB: test_db
+    volumes:
+      - pg_test_data:/var/lib/postgresql/data
+      - ./sql_script/test:/docker-entrypoint-initdb.d
+
+volumes:
+  pg_data:
+  pg_test_data:
