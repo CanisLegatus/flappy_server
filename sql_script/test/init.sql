@@ -1,6 +1,6 @@
-drop table if exists test_score;
+drop table if exists flappy_dragon_score;
 
-create table test_score (
+create table flappy_dragon_score (
 
     id serial primary key,
     player_name text not null,

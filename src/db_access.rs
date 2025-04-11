@@ -78,15 +78,28 @@ pub async fn add_new_score_db(pool: &PgPool, score: PlayerScore) -> Result<(), S
 #[cfg(test)]
 mod db_tests {
     use super::*;
+    
+   async fn get_test_db_pool() -> PgPool {
+        dotenv().ok();
+        let path = env::var("TEST_DATABASE_URL").expect("Test db path is not found!");
+        PgPool::connect(&path).await.expect("Cant connect to test DB!")
+    }
+    
+    #[tokio::test]
+    async fn test_db_connection() {
+        assert!(connect_to_db().await.is_ok());
+    }
+    
 
     #[tokio::test]
-    async fn db_connection_test() {
-        assert!(connect_to_db().await.is_ok());
+    async fn test_db_health_check() {
+        let pool = connect_to_db().await.unwrap();
+        assert!(health_db(&pool).await.is_ok());
     }
 
     #[tokio::test]
-    async fn db_test_health_check() {
-        let pool = connect_to_db().await.unwrap();
-        assert!(health_db(&pool).await.is_ok());
+    async fn test_flush_db() {
+        let pool = get_test_db_pool().await;
+        assert!(flush_scores_db(&pool).await.is_ok());
     }
 }
