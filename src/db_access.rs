@@ -94,20 +94,48 @@ mod db_tests {
 
     #[tokio::test]
     async fn test_db_health_check() {
-        let pool = connect_to_db().await.unwrap();
-        assert!(health_db(&pool).await.is_ok());
+        let pool = connect_to_db()
+            .await
+            .expect("Can't connect to database - can't get a pool");
+        assert!(health_db(&pool).await.is_ok(), "Health is not Ok");
     }
 
     #[tokio::test]
     async fn test_db_flush() {
         let pool = get_test_db_pool().await;
-        assert!(flush_scores_db(&pool).await.is_ok());
+        pool.begin().await.expect("Transaction failed!");
+
+        assert!(
+            flush_scores_db(&pool).await.is_ok(),
+            "Flush is not worked out!"
+        );
+
+        let scores = get_scores_db(&pool)
+            .await
+            .expect("Failed to fetch data after flush!");
+        assert!(scores.is_empty(), "Scores are not empty after flush!");
     }
 
     #[tokio::test]
     async fn test_db_get_scores() {
         let pool = get_test_db_pool().await;
-        assert!(get_scores_db(&pool).await.is_ok());
+        flush_scores_db(&pool).await.expect("Couldn't flush db!");
+        assert!(get_scores_db(&pool).await.is_ok(), "Can't get scores!");
+        assert!(
+            add_new_score_db(
+                &pool,
+                PlayerScore {
+                    player_name: "Bobby".to_string(),
+                    player_score: 50
+                }
+            )
+            .await
+            .is_ok(),
+            "Can't add new score"
+        );
+
+        let score: Vec<PlayerScore> = get_scores_db(&pool).await.expect("Can't get scores!");
+        assert!(score.len() == 1, "Wrong population!");
     }
 
     #[tokio::test]
