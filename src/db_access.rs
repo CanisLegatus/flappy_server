@@ -208,7 +208,6 @@ mod db_tests {
             .expect("Can't get second one!")
             .clone();
         let last_vec_player = players_vector.last().expect("Can't get last one!").clone();
-        println!("{:?}", db_scores);
 
         assert!(first_vec_player.player_score == 10);
         assert_eq!(first_db_player, first_vec_player);
@@ -216,6 +215,10 @@ mod db_tests {
         assert_eq!(last_db_player, last_vec_player);
         assert!(second_db_player.player_score == 10);
         assert_eq!(second_db_player, second_vec_player);
+
+        flush_scores_db(&pool)
+            .await
+            .expect("Can't flush scores in test DB!");
     }
 
     async fn populate_db_with_mock_data(pool: &PgPool, range: std::ops::Range<i32>) {
