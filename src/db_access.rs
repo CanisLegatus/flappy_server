@@ -294,7 +294,6 @@ mod db_tests {
         );
 
         let score: Vec<PlayerScore> = get_scores_db(&pool).await.expect("Can't get scores!");
-        println!("{:?}", score);
         assert!(score.len() == 1, "Wrong population!");
     }
 
