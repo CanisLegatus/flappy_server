@@ -6,7 +6,7 @@ use validator::Validate;
 
 use crate::error::ServerError;
 
-#[derive(sqlx::FromRow, Debug, Deserialize, Serialize, Validate)]
+#[derive(sqlx::FromRow, Debug, Deserialize, Serialize, Validate, PartialEq, Clone)]
 pub struct PlayerScore {
     #[validate(length(min = 3, max = 20))]
     pub player_name: String,
@@ -77,13 +77,159 @@ pub async fn add_new_score_db(pool: &PgPool, score: PlayerScore) -> Result<(), S
 
 #[cfg(test)]
 mod db_tests {
-    use serial_test::serial;
-
     use super::*;
+    use serial_test::serial;
 
     #[tokio::test]
     #[serial]
-    async fn test_db_add_new_score() {}
+    async fn test_db_add_new_score() {
+        let pool = get_test_db_pool().await;
+        flush_scores_db(&pool).await.expect("Can't flush test db!");
+
+        let mut players_vector: Vec<PlayerScore> = vec![];
+
+        for i in 0..12 {
+            let player = PlayerScore {
+                player_name: "Dull".to_string(),
+                player_score: i,
+            };
+
+            if i > 0 && i <= 10 {
+                players_vector.insert(0, player.clone());
+            };
+
+            add_new_score_db(&pool, player.clone())
+                .await
+                .expect("Can't add player to test DB!");
+
+            if i > 0 && i <= 10 {
+                assert_eq!(
+                    players_vector,
+                    get_scores_db(&pool)
+                        .await
+                        .expect("Can't get scores from DB!"),
+                    "Vectors of players doesn't match!"
+                );
+            }
+        }
+
+        assert!(
+            get_scores_db(&pool)
+                .await
+                .expect("Can't get scores from test DB!")
+                .len()
+                == 10,
+            "Final length is more than 10!"
+        );
+
+        flush_scores_db(&pool).await.expect("Can't flush test db!");
+
+        //Let's check if right entries is deleted//
+
+        assert!(get_scores_db(&pool)
+            .await
+            .expect("Can't get scores from test DB!")
+            .is_empty());
+
+        let mut players_vector = vec![];
+
+        for i in 1..11 {
+            let player = PlayerScore {
+                player_name: "Dull".to_string(),
+                player_score: i,
+            };
+
+            players_vector.insert(0, player.clone());
+            add_new_score_db(&pool, player.clone())
+                .await
+                .expect("Can't add new score to test DB!");
+        }
+        assert_eq!(
+            players_vector,
+            get_scores_db(&pool)
+                .await
+                .expect("Can't get scores from DB!"),
+            "Vectors of players doesn't match!"
+        );
+
+        let db_scores: Vec<PlayerScore> = get_scores_db(&pool)
+            .await
+            .expect("Can't get scores from test DB!");
+
+        let first_db_player = db_scores.first().expect("Can't get first one!").clone();
+        let last_db_player = db_scores.last().expect("Can't get last one!").clone();
+
+        let first_vec_player = players_vector
+            .first()
+            .expect("Can't get first one!")
+            .clone();
+        let last_vec_player = players_vector.last().expect("Can't get last one!").clone();
+
+        assert!(first_vec_player.player_score == 10);
+        assert_eq!(first_db_player, first_vec_player);
+        assert!(last_db_player.player_score == 1);
+        assert_eq!(last_db_player, last_vec_player);
+
+        //Now adding one on top!
+        players_vector.insert(
+            0,
+            PlayerScore {
+                player_name: "Dull".to_string(),
+                player_score: 10,
+            },
+        );
+
+        add_new_score_db(
+            &pool,
+            PlayerScore {
+                player_name: "Dull".to_string(),
+                player_score: 10,
+            },
+        )
+        .await
+        .expect("Can't add score!");
+
+        players_vector.pop();
+
+        let db_scores: Vec<PlayerScore> = get_scores_db(&pool)
+            .await
+            .expect("Can't get scores from test DB!");
+
+        let first_db_player = db_scores.first().expect("Can't get first one!").clone();
+        let second_db_player = db_scores.get(1).expect("Can't get second one!").clone();
+        let last_db_player = db_scores.last().expect("Can't get last one!").clone();
+
+        let first_vec_player = players_vector
+            .first()
+            .expect("Can't get first one!")
+            .clone();
+        let second_vec_player = players_vector
+            .get(1)
+            .expect("Can't get second one!")
+            .clone();
+        let last_vec_player = players_vector.last().expect("Can't get last one!").clone();
+        println!("{:?}", db_scores);
+
+        assert!(first_vec_player.player_score == 10);
+        assert_eq!(first_db_player, first_vec_player);
+        assert!(last_db_player.player_score == 2);
+        assert_eq!(last_db_player, last_vec_player);
+        assert!(second_db_player.player_score == 10);
+        assert_eq!(second_db_player, second_vec_player);
+    }
+
+    async fn populate_db_with_mock_data(pool: &PgPool, range: std::ops::Range<i32>) {
+        for i in range {
+            sqlx::query!(
+                "INSERT INTO flappy_dragon_score (player_name, player_score) VALUES ($1, $2)",
+                "TestMike",
+                i,
+            )
+            .execute(pool)
+            .await
+            .expect("Cant insert test data!");
+        }
+    }
 
     async fn get_test_db_pool() -> PgPool {
         dotenv().ok();
@@ -176,16 +322,7 @@ mod db_tests {
         assert!(!pre_player_zero);
         assert!(pre_player_one);
 
-        for i in 1..11 {
-            sqlx::query!(
-                "INSERT INTO flappy_dragon_score (player_name, player_score) VALUES ($1, $2)",
-                "TestMike",
-                i,
-            )
-            .execute(&pool)
-            .await
-            .expect("Cant insert test data!");
-        }
+        populate_db_with_mock_data(&pool, 1..11).await;
 
         let first_player = check_if_record_worthy(
             &pool,
