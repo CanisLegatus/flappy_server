@@ -77,7 +77,13 @@ pub async fn add_new_score_db(pool: &PgPool, score: PlayerScore) -> Result<(), S
 
 #[cfg(test)]
 mod db_tests {
+    use serial_test::serial;
+
     use super::*;
+
+    #[tokio::test]
+    #[serial]
+    async fn test_db_add_new_score() {}
 
     async fn get_test_db_pool() -> PgPool {
         dotenv().ok();
@@ -88,11 +94,13 @@ mod db_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_db_connection() {
         assert!(connect_to_db().await.is_ok());
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_db_health_check() {
         let pool = connect_to_db()
             .await
@@ -101,6 +109,7 @@ mod db_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_db_flush() {
         let pool = get_test_db_pool().await;
         pool.begin().await.expect("Transaction failed!");
@@ -117,6 +126,7 @@ mod db_tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_db_get_scores() {
         let pool = get_test_db_pool().await;
         flush_scores_db(&pool).await.expect("Couldn't flush db!");
@@ -135,13 +145,15 @@ mod db_tests {
         );
 
         let score: Vec<PlayerScore> = get_scores_db(&pool).await.expect("Can't get scores!");
+        println!("{:?}", score);
         assert!(score.len() == 1, "Wrong population!");
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_db_is_worthy() {
         let pool = get_test_db_pool().await;
-
+        flush_scores_db(&pool).await.expect("Can't flush db!");
         let pre_player_zero = check_if_record_worthy(
             &pool,
             &PlayerScore {
