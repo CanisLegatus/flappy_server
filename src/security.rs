@@ -5,7 +5,7 @@ use axum::{
     middleware::Next,
     response::{IntoResponse, Response},
 };
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Duration, TimeZone, Utc};
 use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use rand::{Rng, distr::Alphanumeric};
 use serde::{Deserialize, Serialize};
@@ -22,6 +22,17 @@ pub struct RealTime;
 impl TimeProvider for RealTime {
     fn now(&self) -> DateTime<chrono::Utc> {
         Utc::now()
+    }
+}
+
+pub struct MockTime;
+
+impl TimeProvider for MockTime {
+    fn now(&self) -> DateTime<chrono::Utc> {
+        chrono::Utc
+            .with_ymd_and_hms(2015, 3, 15, 12, 0, 0)
+            .single()
+            .expect("Can't get time in MockTime")
     }
 }
 
@@ -107,7 +118,7 @@ pub async fn jwt_middleware(
     Ok(next.run(req).await)
 }
 
-pub fn generate_jwt(user_id: &str, secret: &str, time: &impl TimeProvider) -> Result<String, JwtError> {
+pub fn generate_jwt(user_id: &str, secret: &str, role: &str, time: &impl TimeProvider) -> Result<String, JwtError> {
     let expiration = time.now() 
         .checked_add_signed(Duration::hours(1))
         .expect("Invalid timestamp! Server is shutdown!")
@@ -116,7 +127,7 @@ pub fn generate_jwt(user_id: &str, secret: &str, time: &impl TimeProvider) -> Re
     let claims = Claims {
         sub: user_id.to_owned(),
         exp: expiration,
-        role: "default".into(),
+        role: role.to_owned(),
     };
 
     encode(
@@ -183,14 +194,33 @@ pub fn generate_secret() -> String {
 
 #[cfg(test)]
 mod security_tests {
+    use jsonwebtoken::Algorithm;
     use super::*;
 
     #[tokio::test]
     async fn test_jwt_generate() {
-        let user_test_id = "test_user";
+        let test_user_id = "test_user";
         let test_secret = "serious_secret";
+        let test_role = "great_leader";
+        let mut no_time_validation = Validation::new(Algorithm::HS256);
+        no_time_validation.validate_exp = false;
 
-
+        let token = generate_jwt(test_user_id, test_secret, test_role, &MockTime).expect("Can't genereate jwt it test!");
+        
+        //Creating decode that will fail because of old data
+        let cursed_decode = decode::<Claims>(&token,
+            &DecodingKey::from_secret(test_secret.as_bytes()), &Validation::new(Algorithm::HS256));
+        
+        //Creating token_data to get Claims
+        let token_data = decode::<Claims>(&token,
+            &DecodingKey::from_secret(test_secret.as_bytes()), &no_time_validation).expect("Can't decode test jwt!"); 
+        
+        let claims = token_data.claims;
+        
+        assert!(cursed_decode.is_err());
+        assert_eq!(&claims.sub, test_user_id);
+        assert_eq!(&claims.role, test_role);
+        assert_eq!(&claims.exp, &(MockTime.now().timestamp() as usize));
 
     }
 }

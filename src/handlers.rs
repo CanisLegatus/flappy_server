@@ -55,7 +55,8 @@ pub async fn login(
         })?;
 
     let secret = &state.jwt_config.read().await.secret;
-    let token = generate_jwt(&user.id, secret, &RealTime).map_err(|e| {
+    let temp_role = "default";
+    let token = generate_jwt(&user.id, secret, temp_role, &RealTime).map_err(|e| {
         tracing::warn!("Can't generate JWT Token!");
         (ServerError::Authentication(e.to_string())).into_response()
     })?;
