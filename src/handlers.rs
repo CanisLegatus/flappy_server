@@ -1,8 +1,8 @@
 use crate::{
-    db_access::{PlayerScore, add_new_score_db, flush_scores_db, get_scores_db, health_db},
+    db_access::{add_new_score_db, flush_scores_db, get_scores_db, health_db, PlayerScore},
     error::ServerError,
     security::{generate_jwt, validate_user},
-    state::AppState,
+    state::AppState, RealTime,
 };
 use axum::{
     Json,
@@ -55,7 +55,7 @@ pub async fn login(
         })?;
 
     let secret = &state.jwt_config.read().await.secret;
-    let token = generate_jwt(&user.id, secret).map_err(|e| {
+    let token = generate_jwt(&user.id, secret, &RealTime).map_err(|e| {
         tracing::warn!("Can't generate JWT Token!");
         (ServerError::Authentication(e.to_string())).into_response()
     })?;

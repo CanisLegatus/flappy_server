@@ -5,13 +5,25 @@ use axum::{
     middleware::Next,
     response::{IntoResponse, Response},
 };
-use chrono::{Duration, Utc};
+use chrono::{DateTime, Duration, Utc};
 use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use rand::{Rng, distr::Alphanumeric};
 use serde::{Deserialize, Serialize};
 use tower_governor::key_extractor::KeyExtractor;
 
 use crate::{error::JwtError, state::AppState};
+
+pub trait TimeProvider {
+    fn now(&self) -> DateTime<chrono::Utc>;
+}
+
+pub struct RealTime;
+
+impl TimeProvider for RealTime {
+    fn now(&self) -> DateTime<chrono::Utc> {
+        Utc::now()
+    }
+}
 
 #[derive(Clone)]
 pub struct JwtKeyExtractor;
@@ -89,14 +101,14 @@ pub async fn jwt_middleware(
         &DecodingKey::from_secret(secret.as_ref()),
         validation,
     )
-    .map_err(|e| JwtError::DecodeError(e))?
+    .map_err(JwtError::DecodeError)?
     .claims;
 
     Ok(next.run(req).await)
 }
 
-pub fn generate_jwt(user_id: &str, secret: &str) -> Result<String, JwtError> {
-    let expiration = Utc::now()
+pub fn generate_jwt(user_id: &str, secret: &str, time: &impl TimeProvider) -> Result<String, JwtError> {
+    let expiration = time.now() 
         .checked_add_signed(Duration::hours(1))
         .expect("Invalid timestamp! Server is shutdown!")
         .timestamp() as usize;
@@ -112,10 +124,10 @@ pub fn generate_jwt(user_id: &str, secret: &str) -> Result<String, JwtError> {
         &claims,
         &EncodingKey::from_secret(secret.as_ref()),
     )
-    .map_err(|e| JwtError::_EncodingError(e))
+    .map_err(JwtError::_EncodingError)
 }
 
-pub async fn validate_user(_username: &String, _password: &String) -> Result<User, String> {
+pub async fn validate_user(_username: &str, _password: &str) -> Result<User, String> {
     Ok(User {
         id: "default".into(),
     })
@@ -168,3 +180,23 @@ pub fn generate_secret() -> String {
     let mut rng = rand::rng();
     (0..32).map(|_| rng.sample(Alphanumeric) as char).collect()
 }
+
+#[cfg(test)]
+mod security_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_jwt_generate() {
+        let user_test_id = "test_user";
+        let test_secret = "serious_secret";
+
+
+
+    }
+}
+
+
+
+
+
+
