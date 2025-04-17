@@ -192,8 +192,45 @@ pub fn generate_secret() -> String {
 
 #[cfg(test)]
 mod security_tests {
+    use axum::{http::{Request, StatusCode}, middleware, Router};
     use jsonwebtoken::Algorithm;
+    use axum::routing::method_routing::get;
+    use tower::ServiceExt;
     use super::*;
+    
+    #[tokio::test]
+    async fn test_set_up_security_headers(){
+
+        let request = Request::builder()
+            .uri("/test")
+            .method("GET")
+            .header("User-agent", "test-agent")
+            .body(Body::empty())
+            .expect("Can't create request");
+        
+        let app = Router::new()
+            .route("/test", get(|| async {"Hello"}))
+            .layer(middleware::from_fn(set_up_security_headers));
+
+        let res: Response<Body> = app.oneshot(request).await.expect("Can't get response!");        
+        let headers = res.headers();
+
+        assert_eq!(res.status(), StatusCode::OK);
+        assert!(headers.contains_key("Content-Security-Policy"));
+        assert!(headers.contains_key("Strict-Transport-Security"));
+        assert!(headers.contains_key("X-Content-Type-Options"));
+        assert!(headers.contains_key("X-Frame-Options"));
+        assert!(headers.contains_key("Referrer-Policy"));
+        assert!(headers.contains_key("Permissions-Policy"));
+        
+        assert_eq!(headers.get("Content-Security-Policy").unwrap(),"default-src 'self'");
+        assert_eq!(headers.get("Strict-Transport-Security").unwrap(),"max-age=31536000; includeSubDomains");
+        assert_eq!(headers.get("X-Content-Type-Options").unwrap(),"nosniff");        
+        assert_eq!(headers.get("X-Frame-Options").unwrap(),"DENY");
+        assert_eq!(headers.get("Referrer-Policy").unwrap(),"no-referrer-when-downgrade");
+        assert_eq!(headers.get("Permissions-Policy").unwrap(),"geolocation=(), camera=()");
+
+    }
 
     #[tokio::test]
     async fn test_jwt_generate() {
