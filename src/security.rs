@@ -70,7 +70,6 @@ pub struct User {
 #[derive(Clone)]
 pub struct JwtConfig {
     pub secret: String,
-    pub _leeway: u64,
     pub validation: Validation,
 }
 
@@ -83,7 +82,6 @@ impl JwtConfig {
 
         Self {
             secret,
-            _leeway: 60,
             validation,
         }
     }
@@ -220,7 +218,7 @@ mod security_tests {
         assert!(cursed_decode.is_err());
         assert_eq!(&claims.sub, test_user_id);
         assert_eq!(&claims.role, test_role);
-        assert_eq!(&claims.exp, &(MockTime.now().timestamp() as usize));
+        assert_eq!(&claims.exp, &((MockTime.now() + Duration::hours(1)).timestamp() as usize));
 
     }
 }
