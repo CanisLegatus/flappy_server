@@ -199,6 +199,36 @@ mod security_tests {
     use super::*;
     
     #[tokio::test]
+    async fn test_jwt_extractor(){
+        let request_good = Request::builder()
+            .uri("/test")
+            .method("GET")
+            .header("Authorization", "Bearer my_test_key")
+            .body(Body::empty()).expect("Can't create request");
+        
+        let request_bad = Request::builder()
+            .uri("/test")
+            .method("GET")
+            .header("Authorization", "Bearer wrong_key")
+            .body(Body::empty()).expect("Can't create request");
+
+        let request_bad_wo_header = Request::builder()
+            .uri("/test")
+            .method("GET")
+            .body(Body::empty()).expect("Can't create request");
+
+
+        let x = JwtKeyExtractor;
+        let right_key = x.extract(&request_good).expect("Can't extract key");
+        let bad_key = x.extract(&request_bad).expect("Can't extract key");
+        let bad_key_wo_head = x.extract(&request_bad_wo_header);
+
+        assert_eq!(right_key, "my_test_key".to_string());
+        assert_ne!(bad_key, "my_test_key".to_string());
+        assert!(bad_key_wo_head.is_err());
+    }
+
+    #[tokio::test]
     async fn test_set_up_security_headers(){
 
         let request = Request::builder()
