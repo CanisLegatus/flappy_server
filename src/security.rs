@@ -104,7 +104,8 @@ pub async fn jwt_middleware(
 
     let secret = &state.jwt_config.read().await.secret;
     let validation = &state.jwt_config.read().await.validation;
-
+    
+    //Decoding token and checking if it is valid
     let _claims = decode::<Claims>(
         token,
         &DecodingKey::from_secret(secret.as_ref()),
@@ -193,11 +194,56 @@ pub fn generate_secret() -> String {
 #[cfg(test)]
 mod security_tests {
     use axum::{http::{Request, StatusCode}, middleware, Router};
-    use jsonwebtoken::Algorithm;
+    use jsonwebtoken::{jwk::KeyAlgorithm, Algorithm};
     use axum::routing::method_routing::get;
     use tower::ServiceExt;
+    use crate::connect_to_db;
+    use std::sync::Arc;
+    use tokio::sync::RwLock;
+
     use super::*;
     
+    #[tokio::test]
+    async fn test_jwt_middleware(){
+        
+        let exp = RealTime.now().checked_add_signed(Duration::hours(1)).expect("Can't get time").timestamp() as usize;
+
+        let claims = Claims {
+            sub: "test user".into(),
+            exp,
+            role: "default".into(),
+        };
+
+        let secret = "test_secret";
+
+        let token = encode(&Header::new(Algorithm::HS256), &claims, &EncodingKey::from_secret(secret.as_bytes())).expect("Can't encode data!");    
+
+        let req = Request::builder()
+            .uri("/test")
+            .method("GET")
+            .header("Authorization", format!("Bearer {}", token))
+            .body(Body::empty()).expect("Can't create request");
+        
+        let pool = connect_to_db().await.expect("Can't get pool");
+
+        let fake_state = AppState {
+            pool,
+            jwt_config: Arc::new(RwLock::new(JwtConfig::new(secret.to_string()))),
+        };
+
+        let app = Router::new()
+            .route("/test", get(|| async {"Hello"}))
+            .layer(middleware::from_fn({
+                move |req, next| {
+                    let state = fake_state.clone();
+                    jwt_middleware(req, next, state)
+            }
+        }));
+        
+        let res = app.oneshot(req).await.expect("Can't get response");
+        assert_eq!(res.status(), StatusCode::OK); 
+    }
+
     #[tokio::test]
     async fn test_jwt_extractor(){
         let request_good = Request::builder()
