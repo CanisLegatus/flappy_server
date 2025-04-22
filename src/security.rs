@@ -218,13 +218,22 @@ mod security_tests {
             .expect("Can't get time")
             .timestamp() as usize;
 
+        let bad_exp = MockTime.now().timestamp() as usize;
+
         let claims = Claims {
             sub: "test user".into(),
             exp,
             role: "default".into(),
         };
 
+        let bad_exp_claims = Claims {
+            sub: "test user".into(),
+            exp: bad_exp,
+            role: "default".into(),
+        };
+
         let secret = "test_secret";
+        let wrong_secret = "sec_t";
 
         let token = encode(
             &Header::new(Algorithm::HS256),
@@ -233,12 +242,18 @@ mod security_tests {
         )
         .expect("Can't encode data!");
 
-        let req = Request::builder()
-            .uri("/test")
-            .method("GET")
-            .header("Authorization", format!("Bearer {}", token))
-            .body(Body::empty())
-            .expect("Can't create request");
+        let bad_exp_token = encode(
+            &Header::new(Algorithm::HS256),
+            &bad_exp_claims,
+            &EncodingKey::from_secret(secret.as_bytes()),
+        )
+        .expect("Can't encode data!");
+        let bad_secret_token = encode(
+            &Header::new(Algorithm::HS256),
+            &claims,
+            &EncodingKey::from_secret(wrong_secret.as_bytes()),
+        )
+        .expect("Can't encode data!");
 
         let pool = connect_to_db().await.expect("Can't get pool");
 
@@ -246,6 +261,40 @@ mod security_tests {
             pool,
             jwt_config: Arc::new(RwLock::new(JwtConfig::new(secret.to_string()))),
         };
+
+        let req = Request::builder()
+            .uri("/test")
+            .method("GET")
+            .header("Authorization", format!("Bearer {}", token))
+            .body(Body::empty())
+            .expect("Can't create request");
+
+        let bad_exp_req = Request::builder()
+            .uri("/test")
+            .method("GET")
+            .header("Authorization", format!("Bearer {}", bad_exp_token))
+            .body(Body::empty())
+            .expect("Can't create request");
+
+        let bad_secret_req = Request::builder()
+            .uri("/test")
+            .method("GET")
+            .header("Authorization", format!("Bearer {}", bad_secret_token))
+            .body(Body::empty())
+            .expect("Can't create request");
+
+        let bad_no_auth_header = Request::builder()
+            .uri("/test")
+            .method("GET")
+            .body(Body::empty())
+            .expect("Can't create request");
+
+        let bad_bearer_req = Request::builder()
+            .uri("/test")
+            .method("GET")
+            .header("Authorization", format!("bearer {}", token))
+            .body(Body::empty())
+            .expect("Can't create request");
 
         let app = Router::new()
             .route("/test", get(|| async { "Hello" }))
@@ -256,8 +305,33 @@ mod security_tests {
                 }
             }));
 
-        let res = app.oneshot(req).await.expect("Can't get response");
+        let res = app.clone().oneshot(req).await.expect("Can't get response");
+        let bad_exp_res = app
+            .clone()
+            .oneshot(bad_exp_req)
+            .await
+            .expect("Can't get response");
+        let bad_secret_res = app
+            .clone()
+            .oneshot(bad_secret_req)
+            .await
+            .expect("Can't get response");
+        let bad_no_auth_res = app
+            .clone()
+            .oneshot(bad_no_auth_header)
+            .await
+            .expect("Can't get response");
+        let bad_bearer_res = app
+            .clone()
+            .oneshot(bad_bearer_req)
+            .await
+            .expect("Can't get response");
+
         assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(bad_exp_res.status(), StatusCode::UNAUTHORIZED);
+        assert_eq!(bad_secret_res.status(), StatusCode::UNAUTHORIZED);
+        assert_eq!(bad_no_auth_res.status(), StatusCode::UNAUTHORIZED);
+        assert_eq!(bad_bearer_res.status(), StatusCode::BAD_REQUEST);
     }
 
     #[tokio::test]
