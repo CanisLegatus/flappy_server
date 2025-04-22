@@ -1,8 +1,9 @@
 use crate::{
-    db_access::{add_new_score_db, flush_scores_db, get_scores_db, health_db, PlayerScore},
+    RealTime,
+    db_access::{PlayerScore, add_new_score_db, flush_scores_db, get_scores_db, health_db},
     error::ServerError,
     security::{generate_jwt, validate_user},
-    state::AppState, RealTime,
+    state::AppState,
 };
 use axum::{
     Json,

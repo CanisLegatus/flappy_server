@@ -126,10 +126,12 @@ mod db_tests {
 
         //Let's check if right entries is deleted//
 
-        assert!(get_scores_db(&pool)
-            .await
-            .expect("Can't get scores from test DB!")
-            .is_empty());
+        assert!(
+            get_scores_db(&pool)
+                .await
+                .expect("Can't get scores from test DB!")
+                .is_empty()
+        );
 
         let mut players_vector = vec![];
 

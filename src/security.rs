@@ -80,10 +80,7 @@ impl JwtConfig {
         validation.validate_exp = true;
         validation.validate_nbf = true;
 
-        Self {
-            secret,
-            validation,
-        }
+        Self { secret, validation }
     }
 }
 
@@ -104,7 +101,7 @@ pub async fn jwt_middleware(
 
     let secret = &state.jwt_config.read().await.secret;
     let validation = &state.jwt_config.read().await.validation;
-    
+
     //Decoding token and checking if it is valid
     let _claims = decode::<Claims>(
         token,
@@ -117,8 +114,14 @@ pub async fn jwt_middleware(
     Ok(next.run(req).await)
 }
 
-pub fn generate_jwt(user_id: &str, secret: &str, role: &str, time: &impl TimeProvider) -> Result<String, JwtError> {
-    let expiration = time.now() 
+pub fn generate_jwt(
+    user_id: &str,
+    secret: &str,
+    role: &str,
+    time: &impl TimeProvider,
+) -> Result<String, JwtError> {
+    let expiration = time
+        .now()
         .checked_add_signed(Duration::hours(1))
         .expect("Invalid timestamp! Server is shutdown!")
         .timestamp() as usize;
@@ -193,20 +196,27 @@ pub fn generate_secret() -> String {
 
 #[cfg(test)]
 mod security_tests {
-    use axum::{http::{Request, StatusCode}, middleware, Router};
-    use jsonwebtoken::{jwk::KeyAlgorithm, Algorithm};
-    use axum::routing::method_routing::get;
-    use tower::ServiceExt;
     use crate::connect_to_db;
+    use axum::routing::method_routing::get;
+    use axum::{
+        Router,
+        http::{Request, StatusCode},
+        middleware,
+    };
+    use jsonwebtoken::Algorithm;
     use std::sync::Arc;
     use tokio::sync::RwLock;
+    use tower::ServiceExt;
 
     use super::*;
-    
+
     #[tokio::test]
-    async fn test_jwt_middleware(){
-        
-        let exp = RealTime.now().checked_add_signed(Duration::hours(1)).expect("Can't get time").timestamp() as usize;
+    async fn test_jwt_middleware() {
+        let exp = RealTime
+            .now()
+            .checked_add_signed(Duration::hours(1))
+            .expect("Can't get time")
+            .timestamp() as usize;
 
         let claims = Claims {
             sub: "test user".into(),
@@ -216,14 +226,20 @@ mod security_tests {
 
         let secret = "test_secret";
 
-        let token = encode(&Header::new(Algorithm::HS256), &claims, &EncodingKey::from_secret(secret.as_bytes())).expect("Can't encode data!");    
+        let token = encode(
+            &Header::new(Algorithm::HS256),
+            &claims,
+            &EncodingKey::from_secret(secret.as_bytes()),
+        )
+        .expect("Can't encode data!");
 
         let req = Request::builder()
             .uri("/test")
             .method("GET")
             .header("Authorization", format!("Bearer {}", token))
-            .body(Body::empty()).expect("Can't create request");
-        
+            .body(Body::empty())
+            .expect("Can't create request");
+
         let pool = connect_to_db().await.expect("Can't get pool");
 
         let fake_state = AppState {
@@ -232,37 +248,39 @@ mod security_tests {
         };
 
         let app = Router::new()
-            .route("/test", get(|| async {"Hello"}))
+            .route("/test", get(|| async { "Hello" }))
             .layer(middleware::from_fn({
                 move |req, next| {
                     let state = fake_state.clone();
                     jwt_middleware(req, next, state)
-            }
-        }));
-        
+                }
+            }));
+
         let res = app.oneshot(req).await.expect("Can't get response");
-        assert_eq!(res.status(), StatusCode::OK); 
+        assert_eq!(res.status(), StatusCode::OK);
     }
 
     #[tokio::test]
-    async fn test_jwt_extractor(){
+    async fn test_jwt_extractor() {
         let request_good = Request::builder()
             .uri("/test")
             .method("GET")
             .header("Authorization", "Bearer my_test_key")
-            .body(Body::empty()).expect("Can't create request");
-        
+            .body(Body::empty())
+            .expect("Can't create request");
+
         let request_bad = Request::builder()
             .uri("/test")
             .method("GET")
             .header("Authorization", "Bearer wrong_key")
-            .body(Body::empty()).expect("Can't create request");
+            .body(Body::empty())
+            .expect("Can't create request");
 
         let request_bad_wo_header = Request::builder()
             .uri("/test")
             .method("GET")
-            .body(Body::empty()).expect("Can't create request");
-
+            .body(Body::empty())
+            .expect("Can't create request");
 
         let x = JwtKeyExtractor;
         let right_key = x.extract(&request_good).expect("Can't extract key");
@@ -275,20 +293,19 @@ mod security_tests {
     }
 
     #[tokio::test]
-    async fn test_set_up_security_headers(){
-
+    async fn test_set_up_security_headers() {
         let request = Request::builder()
             .uri("/test")
             .method("GET")
             .header("User-agent", "test-agent")
             .body(Body::empty())
             .expect("Can't create request");
-        
+
         let app = Router::new()
-            .route("/test", get(|| async {"Hello"}))
+            .route("/test", get(|| async { "Hello" }))
             .layer(middleware::from_fn(set_up_security_headers));
 
-        let res: Response<Body> = app.oneshot(request).await.expect("Can't get response!");        
+        let res: Response<Body> = app.oneshot(request).await.expect("Can't get response!");
         let headers = res.headers();
 
         assert_eq!(res.status(), StatusCode::OK);
@@ -298,14 +315,25 @@ mod security_tests {
         assert!(headers.contains_key("X-Frame-Options"));
         assert!(headers.contains_key("Referrer-Policy"));
         assert!(headers.contains_key("Permissions-Policy"));
-        
-        assert_eq!(headers.get("Content-Security-Policy").unwrap(),"default-src 'self'");
-        assert_eq!(headers.get("Strict-Transport-Security").unwrap(),"max-age=31536000; includeSubDomains");
-        assert_eq!(headers.get("X-Content-Type-Options").unwrap(),"nosniff");        
-        assert_eq!(headers.get("X-Frame-Options").unwrap(),"DENY");
-        assert_eq!(headers.get("Referrer-Policy").unwrap(),"no-referrer-when-downgrade");
-        assert_eq!(headers.get("Permissions-Policy").unwrap(),"geolocation=(), camera=()");
 
+        assert_eq!(
+            headers.get("Content-Security-Policy").unwrap(),
+            "default-src 'self'"
+        );
+        assert_eq!(
+            headers.get("Strict-Transport-Security").unwrap(),
+            "max-age=31536000; includeSubDomains"
+        );
+        assert_eq!(headers.get("X-Content-Type-Options").unwrap(), "nosniff");
+        assert_eq!(headers.get("X-Frame-Options").unwrap(), "DENY");
+        assert_eq!(
+            headers.get("Referrer-Policy").unwrap(),
+            "no-referrer-when-downgrade"
+        );
+        assert_eq!(
+            headers.get("Permissions-Policy").unwrap(),
+            "geolocation=(), camera=()"
+        );
     }
 
     #[tokio::test]
@@ -316,28 +344,32 @@ mod security_tests {
         let mut no_time_validation = Validation::new(Algorithm::HS256);
         no_time_validation.validate_exp = false;
 
-        let token = generate_jwt(test_user_id, test_secret, test_role, &MockTime).expect("Can't genereate jwt it test!");
-        
+        let token = generate_jwt(test_user_id, test_secret, test_role, &MockTime)
+            .expect("Can't genereate jwt it test!");
+
         //Creating decode that will fail because of old data
-        let cursed_decode = decode::<Claims>(&token,
-            &DecodingKey::from_secret(test_secret.as_bytes()), &Validation::new(Algorithm::HS256));
-        
+        let cursed_decode = decode::<Claims>(
+            &token,
+            &DecodingKey::from_secret(test_secret.as_bytes()),
+            &Validation::new(Algorithm::HS256),
+        );
+
         //Creating token_data to get Claims
-        let token_data = decode::<Claims>(&token,
-            &DecodingKey::from_secret(test_secret.as_bytes()), &no_time_validation).expect("Can't decode test jwt!"); 
-        
+        let token_data = decode::<Claims>(
+            &token,
+            &DecodingKey::from_secret(test_secret.as_bytes()),
+            &no_time_validation,
+        )
+        .expect("Can't decode test jwt!");
+
         let claims = token_data.claims;
-        
+
         assert!(cursed_decode.is_err());
         assert_eq!(&claims.sub, test_user_id);
         assert_eq!(&claims.role, test_role);
-        assert_eq!(&claims.exp, &((MockTime.now() + Duration::hours(1)).timestamp() as usize));
-
+        assert_eq!(
+            &claims.exp,
+            &((MockTime.now() + Duration::hours(1)).timestamp() as usize)
+        );
     }
 }
-
-
-
-
-
-
