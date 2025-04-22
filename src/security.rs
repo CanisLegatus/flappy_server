@@ -209,6 +209,22 @@ mod security_tests {
     use tower::ServiceExt;
 
     use super::*;
+    
+    fn generate_test_request(headers: Vec<(&str, &str)>) -> Request<Body> {
+        
+        let mut builder = Request::builder()
+            .uri("/test")
+            .method("GET");
+            
+        for (key, value) in headers {
+           builder = builder.header(key, value);
+        };
+
+        builder.body(Body::empty())
+            .expect("Can't create request")
+
+
+    }
 
     #[tokio::test]
     async fn test_jwt_middleware() {
@@ -261,40 +277,12 @@ mod security_tests {
             pool,
             jwt_config: Arc::new(RwLock::new(JwtConfig::new(secret.to_string()))),
         };
-
-        let req = Request::builder()
-            .uri("/test")
-            .method("GET")
-            .header("Authorization", format!("Bearer {}", token))
-            .body(Body::empty())
-            .expect("Can't create request");
-
-        let bad_exp_req = Request::builder()
-            .uri("/test")
-            .method("GET")
-            .header("Authorization", format!("Bearer {}", bad_exp_token))
-            .body(Body::empty())
-            .expect("Can't create request");
-
-        let bad_secret_req = Request::builder()
-            .uri("/test")
-            .method("GET")
-            .header("Authorization", format!("Bearer {}", bad_secret_token))
-            .body(Body::empty())
-            .expect("Can't create request");
-
-        let bad_no_auth_header = Request::builder()
-            .uri("/test")
-            .method("GET")
-            .body(Body::empty())
-            .expect("Can't create request");
-
-        let bad_bearer_req = Request::builder()
-            .uri("/test")
-            .method("GET")
-            .header("Authorization", format!("bearer {}", token))
-            .body(Body::empty())
-            .expect("Can't create request");
+        
+        let req = generate_test_request(vec![("Authorization", &format!("Bearer {}", token))]);
+        let bad_exp_req = generate_test_request(vec![("Authorization", &format!("Bearer {}", bad_exp_token))]);
+        let bad_secret_req = generate_test_request(vec![("Authorization", &format!("Bearer {}", bad_secret_token))]);
+        let bad_no_auth_header_req = generate_test_request(vec![]);
+        let bad_bearer_req = generate_test_request(vec![("Authorization", &format!("bearer {}", token))]);
 
         let app = Router::new()
             .route("/test", get(|| async { "Hello" }))
@@ -318,7 +306,7 @@ mod security_tests {
             .expect("Can't get response");
         let bad_no_auth_res = app
             .clone()
-            .oneshot(bad_no_auth_header)
+            .oneshot(bad_no_auth_header_req)
             .await
             .expect("Can't get response");
         let bad_bearer_res = app
