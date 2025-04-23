@@ -227,6 +227,16 @@ mod security_tests {
     }
 
     #[tokio::test]
+    async fn test_generate_secret() {
+        let secret = generate_secret();
+        let secret2 = generate_secret();
+
+        assert_eq!(secret.len(), 32, "Length of secret is not equal to 32!");
+        assert!(secret.chars().all(|c| c.is_alphanumeric()), "Secret is not Alphanumeric!");
+        assert_ne!(secret, secret2, "Secrets are same!");
+    }
+
+    #[tokio::test]
     async fn test_jwt_middleware() {
         let exp = RealTime
             .now()
